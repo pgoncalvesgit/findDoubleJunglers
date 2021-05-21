@@ -24,7 +24,7 @@ def game_has_n_or_more_junglers(match_detail, number_of_junglers):
 
 
 def was_match_already_checked(match_id):
-    with open(matches_checked_file_name, "r") as file_reader:
+    with open(matches_checked_file_name, "r", encoding="utf-8") as file_reader:
         match_ids = file_reader.readlines()
         for match in match_ids:
             if match.strip() == match_id:
@@ -34,10 +34,10 @@ def was_match_already_checked(match_id):
 
 def return_list_lines_from_file(file_name):
     try:
-        with open(file_name, "r") as file_reader:
+        with open(file_name, "r", encoding="utf-8") as file_reader:
             return file_reader.readlines()
     except FileNotFoundError:
-        with open(file_name, "w"):
+        with open(file_name, "w", encoding="utf-8"):
             return list()
 
 
@@ -63,13 +63,13 @@ def get_junglers(current_summoner_name, matches):
 def remove_duplicate_summoners(summoners):
     filtred_summoners = list()
     try:
-        with open(last_100_summoners_checked, "r") as file_reader:
+        with open(last_100_summoners_checked, "r", encoding="utf-8") as file_reader:
             summoners = file_reader.readlines()
             for summoner in summoners:
                 if summoner not in summoners:
                     filtred_summoners.append(summoner)
     except FileNotFoundError:
-        open(last_100_summoners_checked, "w")
+        open(last_100_summoners_checked, "w", encoding="utf-8")
     return filtred_summoners
 
 
@@ -82,16 +82,16 @@ def add_junglers_to_summoner_list(summoners, junglers):
 def add_line_if_not_in_file(line, file_name):
     add = True
     try:
-        with open(file_name, "r") as file_reader:
+        with open(file_name, "r", encoding="utf-8") as file_reader:
             for line_already_written in file_reader.readlines():
                 if line_already_written.strip() == line:
                     add = False
                     break
     except FileNotFoundError:
-        open(file_name, "w")
+        open(file_name, "w", encoding="utf-8")
 
     if add:
-        with open(file_name, "a") as file_writer:
+        with open(file_name, "a", encoding="utf-8") as file_writer:
             file_writer.write(line + "\n")
 
 
@@ -105,38 +105,41 @@ def add_double_jungler_to_list(summoner):
 
 def add_match_to_list(matchId):
     try:
-        with open(matches_checked_file_name, "r") as file_reader:
+        with open(matches_checked_file_name, "r", encoding="utf-8") as file_reader:
             for line in file_reader.readlines():
                 if line.strip() == str(matchId):
                     return
     except FileNotFoundError:
-        open(matches_checked_file_name, "w")
-    with open(matches_checked_file_name, "a") as file_writer:
+        open(matches_checked_file_name, "w", encoding="utf-8")
+    with open(matches_checked_file_name, "a", encoding="utf-8") as file_writer:
         file_writer.write(str(matchId) + "\n")
 
 
 def add_summoner_to_100_list(summoner):
-    with open(last_100_summoners_checked, "r") as file_reader:
+    toAdd = True
+    with open(last_100_summoners_checked, "r", encoding="utf-8") as file_reader:
         summoner_names = file_reader.readlines()
         if len(summoner_names) >= 100:
             summoner_names = summoner_names[1::]
-    with open(last_100_summoners_checked, "w") as file_writer:
+    with open(last_100_summoners_checked, "w", encoding="utf-8") as file_writer:
         for summoner_name in summoner_names:
             if summoner_name != "" and summoner_name != "\n":
                 file_writer.write(summoner_name)
-        if summoner != "" and summoner != "\n":
+            if summoner_name.strip() == summoner:
+                toAdd = False
+        if toAdd and summoner != "" and summoner != "\n":
             file_writer.write(str(summoner) + "\n")
 
 
 def update_summoners_to_search(summoner_names_to_update):
     try:
-        with open(summoner_names_to_check_file_name, "r") as file_reader:
+        with open(summoner_names_to_check_file_name, "r", encoding="utf-8") as file_reader:
             summoner_names = file_reader.readlines()
             summoner_names = summoner_names[1::]
     except FileNotFoundError:
-        open(summoner_names_checked, "w")
+        open(summoner_names_checked, "w", encoding="utf-8")
         summoner_names = list()
-    with open(summoner_names_to_check_file_name, "w") as file_writer:
+    with open(summoner_names_to_check_file_name, "w", encoding="utf-8") as file_writer:
         for summoner_id in summoner_names:
             if summoner_id != "" and summoner_id != "\n":
                 file_writer.write(summoner_id)
@@ -155,6 +158,40 @@ def update_lists(current_summoner, summoner_names_yet_to_search):
     summoner_names_yet_to_search.pop(0)
     add_summoner_to_100_list(current_summoner)
     update_summoners_to_search(summoner_names_yet_to_search)
+
+
+def get_team(summoner_name, match_detail):
+    participantId = -1
+    for participant in match_detail['participantIdentities']:
+        if participant["player"]["summonerName"] == summoner_name:
+            participantId = participant["participantId"]
+
+    if participantId == -1:
+        return -1
+
+    for participant in match_detail['participants']:
+        if participant['participantId'] == participantId:
+            return participant['teamId']
+
+    return -1
+
+
+def team_has_two_junglers(summoner_name, match_detail):
+    teamId = get_team(summoner_name, match_detail)
+    if teamId == -1:
+        return False
+
+    counter = 0
+    for participant in match_detail['participants']:
+        if participant['teamId'] == teamId and (participant['spell1Id'] == 11 or participant['spell2Id'] == 11):
+            counter = counter + 1
+
+    if counter >= 2:
+        return True
+    else:
+        return False
+
+
 
 def main():
     summoner_names_yet_to_search = get_summoner_names_to_search()
@@ -175,8 +212,10 @@ def main():
             if err.errno == 429:
                 print("too many requests... sleeping")
                 time.sleep(1)
+                continue
             else:
                 print(err)
+                continue
         print(summoner_names_yet_to_search[0].strip())
         current_matches = watcher.match.matchlist_by_account(
             my_region, summoner['accountId'],
@@ -187,7 +226,21 @@ def main():
         filtered_matches = list()
         filtered_matches_details = list()
         for match in current_matches['matches']:
-            match_detail = watcher.match.by_id(my_region, match['gameId'])
+            try:
+                match_detail = watcher.match.by_id(my_region, match['gameId'])
+            except requests.exceptions.HTTPError as err:
+                if err.errno == 429:
+                    print("too many requests... sleeping")
+                    time.sleep(1)
+                    continue
+                elif err.errno == 504:
+                    print("Gateway Timeout - moving on")
+                    time.sleep(1)
+                    continue
+                else:
+                    print(err)
+                    continue
+
             #erro 504 - Gateway Timeout
 
             add_match_to_list(match['gameId'])
@@ -197,7 +250,8 @@ def main():
                     filtered_matches_details.append(match_detail)
                 elif game_has_n_or_more_junglers(match_detail, 4):
                     add_special_game(match)
-                add_double_jungler_to_list(summoner['name'])
+                if team_has_two_junglers(summoner['name'], match_detail):
+                    add_double_jungler_to_list(summoner['name'])
 
         junglers = get_junglers(summoner['name'], filtered_matches_details)
         remove_duplicate_summoners(junglers)
